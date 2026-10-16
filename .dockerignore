@@ -1,0 +1,28 @@
+# Závislosti (nainstaluje se v image zvlášť)
+
+node_modules
+server/node_modules
+**/node_modules
+
+# Verzování
+
+.git
+.gitignore
+.gitattributes
+
+# Data serveru (VAPID klíče, SQLite) – nesmí do produkčního image
+
+server/data
+vapid.json
+
+# Docker konfigurace samotná (není potřeba uvnitř)
+
+Dockerfile
+docker-compose.yml
+.dockerignore
+Caddyfile
+
+# Dokumentace
+
+*.md
+!README.md
