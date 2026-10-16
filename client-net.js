@@ -1,5 +1,5 @@
 /* =========================================================================
-   Šachy – client-net.js
+   Šachy – client-net.js  (FIXED: shadowing state → mpState)
    Multiplayer klient + historie partií + Web Push integrace.
    Autor: Better DeepSeek (AI) · Zadavatel: Jan Hošek · 2026
    SPDX-License-Identifier: GPL-3.0-or-later
@@ -8,16 +8,30 @@
 (function () {
   'use strict';
 
-  var socket = null;
-  var state = {
+  /* POZN.: dříve zde bylo `var state`, které shadowovalo globální šachový
+     stav z game.js. To způsobovalo pád v getAllLegalMoves() při cizím tahu.
+     Nyní se jmenuje `mpState`. */
+  var mpState = {
     user: null, token: null, roomId: null, role: null,
     isPublic: false, status: 'idle', inRoom: false
   };
+  var socket = null;
   var suppressMoveSend = false;
 
+  /* WS URL odvozená z aktuální cesty – funguje i za Caddy subpath (/chess/). */
   var WS_URL = (function () {
     var proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-    return proto + '//' + location.host + '/ws';
+    var base = location.pathname.replace(/\/[^\/]*$/, ''); // strip filename
+    if (!base) base = '/';
+    if (base.charAt(base.length - 1) === '/') base = base.slice(0, -1);
+    return proto + '//' + location.host + base + '/ws';
+  })();
+
+  /* REST base (leaderboard, PGN) – také odvozeno z cesty. */
+  var API_BASE = (function () {
+    var base = location.pathname.replace(/\/[^\/]*$/, '');
+    if (!base) base = '';
+    return base;
   })();
 
   function connect() {
@@ -25,14 +39,13 @@
     socket = new WebSocket(WS_URL);
     socket.onopen = function () {
       setStatusLine('Připojeno k serveru.');
-      if (state.token && state.roomId) {
-        socket.send(JSON.stringify({ type: 'reconnect', token: state.token, roomId: state.roomId }));
+      if (mpState.token && mpState.roomId) {
+        socket.send(JSON.stringify({ type: 'reconnect', token: mpState.token, roomId: mpState.roomId }));
       }
     };
     socket.onmessage = function (e) {
       var msg;
       try { msg = JSON.parse(e.data); } catch (err) { return; }
-      /* Pošli event pro push-client.js */
       try { window.dispatchEvent(new CustomEvent('sachy-mp-msg', { detail: msg })); } catch (err) {}
       onServerMessage(msg);
     };
@@ -45,7 +58,6 @@
   function sendMsg(obj) {
     if (socket && socket.readyState === 1) socket.send(JSON.stringify(obj));
   }
-  /* Veřejný send pro push-client.js */
   window.mpSend = sendMsg;
 
   var modal = null, statusLine = null, lobbyArea = null, roomArea = null;
@@ -113,12 +125,12 @@
 
   function showTab() {
     if (!modal) return;
-    lobbyArea.hidden = activeTab !== 'play' || state.inRoom;
-    roomArea.hidden = !state.inRoom || activeTab !== 'play';
+    lobbyArea.hidden = activeTab !== 'play' || mpState.inRoom;
+    roomArea.hidden = !mpState.inRoom || activeTab !== 'play';
     historyArea.hidden = activeTab !== 'history';
     leaderboardArea.hidden = activeTab !== 'leaderboard';
     if (activeTab === 'history') {
-      if (!state.user) historyArea.innerHTML = '<div class="mp-section"><p class="hint-mini">Nejdřív se přihlas v záložce Hrát.</p></div>';
+      if (!mpState.user) historyArea.innerHTML = '<div class="mp-section"><p class="hint-mini">Nejdřív se přihlas v záložce Hrát.</p></div>';
       else {
         sendMsg({ type: 'history', limit: 30 });
         historyArea.innerHTML = '<div class="mp-section"><p class="hint-mini">Načítám historii…</p></div>';
@@ -130,16 +142,15 @@
     ensureUI();
     modal.hidden = false;
     connect();
-    if (state.user && !state.inRoom) sendMsg({ type: 'list-rooms' });
+    if (mpState.user && !mpState.inRoom) sendMsg({ type: 'list-rooms' });
     showTab();
-    /* Push tlačítko – necháme push-client.js, ať se postará */
     try { window.dispatchEvent(new Event('sachy-mp-modal-open')); } catch (e) {}
   }
   function setStatusLine(text) { if (statusLine) statusLine.textContent = text; }
 
   function renderLobby() {
     if (!lobbyArea) return;
-    if (!state.user) {
+    if (!mpState.user) {
       lobbyArea.innerHTML = '' +
         '<div class="mp-section">' +
         '  <h3>Přihlášení</h3>' +
@@ -157,7 +168,7 @@
     }
     lobbyArea.innerHTML = '' +
       '<div class="mp-section">' +
-      '  <h3>Přihlášen jako <b>' + escapeHtml(state.user.nickname) + '</b> (' + state.user.rating + ')</h3>' +
+      '  <h3>Přihlášen jako <b>' + escapeHtml(mpState.user.nickname) + '</b> (' + mpState.user.rating + ')</h3>' +
       '  <div class="controls">' +
       '    <button id="mpCreatePrivate" class="btn">Soukromá hra</button>' +
       '    <button id="mpCreatePublic" class="btn btn-outline">Veřejná hra</button>' +
@@ -228,16 +239,16 @@
     if (!roomArea) return;
     roomArea.hidden = false;
     lobbyArea.hidden = true;
-    var roleText = state.role === 'spectator' ? 'Divák' : (state.role === 'w' ? 'Bílý' : 'Černý');
-    var shareUrl = location.origin + location.pathname + '#mp=' + state.roomId;
+    var roleText = mpState.role === 'spectator' ? 'Divák' : (mpState.role === 'w' ? 'Bílý' : 'Černý');
+    var shareUrl = location.origin + location.pathname + '#mp=' + mpState.roomId;
     var html = '' +
       '<div class="mp-section">' +
-      '  <h3>Místnost <b>' + state.roomId + '</b> — hraješ za: ' + roleText + '</h3>' +
+      '  <h3>Místnost <b>' + mpState.roomId + '</b> — hraješ za: ' + roleText + '</h3>' +
       '  <p class="hint-mini">Odkaz: <code>' + escapeHtml(shareUrl) + '</code></p>' +
       '  <div class="controls">' +
       '    <button id="mpCopyLink" class="btn btn-outline">Kopírovat odkaz</button>' +
       '    <button id="mpLeave" class="btn btn-outline">Opustit</button>' +
-      (state.role === 'w' || state.role === 'b' ?
+      (mpState.role === 'w' || mpState.role === 'b' ?
         '    <button id="mpResign" class="btn btn-outline">Vzdát</button>' +
         '    <button id="mpDraw" class="btn btn-outline">Remíza</button>' : '') +
       '  </div>' +
@@ -301,7 +312,7 @@
       (function (btn) {
         btn.addEventListener('click', function () {
           var id = btn.dataset.id;
-          fetch('api/game/' + id + '/pgn').then(function (r) {
+          fetch(API_BASE + '/api/game/' + id + '/pgn').then(function (r) {
             if (!r.ok) throw new Error('PGN nenalezeno');
             return r.text();
           }).then(function (pgn) {
@@ -317,7 +328,7 @@
   function loadLeaderboard() {
     if (!leaderboardArea) return;
     leaderboardArea.innerHTML = '<div class="mp-section"><p class="hint-mini">Načítám…</p></div>';
-    fetch('api/leaderboard').then(function (r) { return r.json(); }).then(function (data) {
+    fetch(API_BASE + '/api/leaderboard').then(function (r) { return r.json(); }).then(function (data) {
       var list = data.top || [];
       if (list.length === 0) { leaderboardArea.innerHTML = '<div class="mp-section"><p class="hint-mini">Zatím žádní hráči.</p></div>'; return; }
       var html = '<div class="mp-section"><h3>Top hráči</h3><div class="mp-leaderboard">';
@@ -365,7 +376,7 @@
     return m + ':' + (ss < 10 ? '0' : '') + ss;
   }
   function leaveRoom() {
-    state.inRoom = false; state.roomId = null; state.role = null;
+    mpState.inRoom = false; mpState.roomId = null; mpState.role = null;
     roomArea.hidden = true; lobbyArea.hidden = false;
     showTab();
     try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {}
@@ -374,21 +385,21 @@
   function onServerMessage(msg) {
     switch (msg.type) {
       case 'logged-in':
-        state.user = msg.user;
-        if (msg.token) { state.token = msg.token; try { localStorage.setItem('sachy-mp-token', msg.token); } catch (e) {} }
+        mpState.user = msg.user;
+        if (msg.token) { mpState.token = msg.token; try { localStorage.setItem('sachy-mp-token', msg.token); } catch (e) {} }
         setStatusLine('Přihlášen jako ' + msg.user.nickname + '.');
         renderLobby();
         if (activeTab === 'history') sendMsg({ type: 'history', limit: 30 });
         break;
       case 'login-error': setStatusLine('Chyba: ' + msg.message); break;
       case 'room-created':
-        state.roomId = msg.roomId; state.role = msg.color; state.inRoom = true;
+        mpState.roomId = msg.roomId; mpState.role = msg.color; mpState.inRoom = true;
         setStatusLine('Místnost ' + msg.roomId + '. Pošli odkaz.');
         renderRoom();
         try { history.replaceState(null, '', location.pathname + '#mp=' + msg.roomId); } catch (e) {}
         break;
       case 'room-list': renderRoomList(msg.rooms); break;
-      case 'state': applyServerState(msg); if (!state.inRoom) { state.inRoom = true; renderRoom(); } break;
+      case 'state': applyServerState(msg); if (!mpState.inRoom) { mpState.inRoom = true; renderRoom(); } break;
       case 'move': applyRemoteMove(msg); break;
       case 'clock': setClocks(msg); break;
       case 'chat': appendChat(msg.entry); break;
@@ -411,9 +422,14 @@
     }
   }
 
+  /* OPRAVENO: nastavuje GLOBÁLNÍ šachový stav (board/turn/state).
+     Server posílá i `state` (rošáda, en passant). */
   function applyServerState(s) {
-    state.roomId = s.roomId; state.role = s.myRole; state.isPublic = s.isPublic; state.status = s.status;
-    board = s.board; turn = s.turn; uciHistory = s.uciHistory || [];
+    mpState.roomId = s.roomId; mpState.role = s.myRole; mpState.isPublic = s.isPublic; mpState.status = s.status;
+    board = s.board;
+    turn = s.turn;
+    uciHistory = s.uciHistory || [];
+    state = s.state || { enPassant: null, castling: { w: { k: true, q: true }, b: { k: true, q: true } } };
     gameOver = (s.status === 'ended');
     selected = null; legalTargets = []; hintMove = null;
     try { render(); } catch (e) { console.error(e); }
@@ -426,6 +442,7 @@
     if (s.result) handleGameOver({ result: s.result, reason: s.endReason });
   }
 
+  /* OPRAVENO: `state` nyní odkazuje na globální šachový stav (dřív byl shadowován). */
   function applyRemoteMove(msg) {
     var from = uciToRC(msg.from);
     var to = uciToRC(msg.to);
@@ -449,7 +466,12 @@
   function handleGameOver(msg) {
     gameOver = true;
     var txt = msg.result === '1-0' ? 'Vyhrál Bílý.' : (msg.result === '0-1' ? 'Vyhrál Černý.' : 'Remíza.');
-    var reasons = { 'checkmate': 'mat', 'stalemate': 'pat', 'timeout': 'vypršel čas', 'resign': 'vzdání', 'agreement': 'dohoda', 'forfeit': 'soupeř odešel' };
+    var reasons = {
+      'checkmate': 'mat', 'stalemate': 'pat', 'timeout': 'vypršel čas',
+      'resign': 'vzdání', 'agreement': 'dohoda', 'forfeit': 'soupeř odešel',
+      'fifty-move': '50 tahů', 'threefold': 'trojí opakování',
+      'material': 'nedostatečný materiál'
+    };
     var rsn = reasons[msg.reason] || msg.reason || '';
     setStatusLine('Konec: ' + txt + ' (' + rsn + ')');
     if (typeof statusEl !== 'undefined' && statusEl) statusEl.textContent = 'Konec: ' + txt + ' (' + rsn + ')';
@@ -459,7 +481,7 @@
     var _origMakeMove = makeMove;
     window.makeMove = function (move) {
       if (suppressMoveSend) return _origMakeMove.apply(this, arguments);
-      if (state.inRoom && (state.role === 'w' || state.role === 'b') && state.status === 'playing') {
+      if (mpState.inRoom && (mpState.role === 'w' || mpState.role === 'b') && mpState.status === 'playing') {
         sendMsg({ type: 'move', from: FILES[move.from.c] + (8 - move.from.r), to: FILES[move.to.c] + (8 - move.to.r), promotion: move.promotion || null });
         return;
       }
@@ -499,7 +521,7 @@
     ensureUI();
     try {
       var t = localStorage.getItem('sachy-mp-token');
-      if (t) { state.token = t; connect(); }
+      if (t) { mpState.token = t; connect(); }
     } catch (e) {}
     checkHash();
   }

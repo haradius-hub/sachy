@@ -1,11 +1,6 @@
 /* =========================================================================
-   Šachy – hotseat.js
+   Šachy – hotseat.js  (FIXED: shadowing state → hotseatState)
    Režim "dva hráči u jednoho PC" (hot-seat).
-   Přidá do UI:
-     - checkbox "Hot-seat (dva hráči u PC)"
-     - inputs pro jména obou hráčů
-     - panel se skóre (výhry Bílý / Černý / remízy)
-     - obarvený indikátor "Na tahu: [jméno]"
    Autor: Better DeepSeek (AI) · Zadavatel: Jan Hošek · 2026
    SPDX-License-Identifier: GPL-3.0-or-later
    ========================================================================= */
@@ -13,46 +8,44 @@
 (function () {
   'use strict';
 
+  /* OPRAVA: původně zde bylo `var state`, které shadowovalo globální šachový
+     stav z game.js. Způsobovalo pád v getAllLegalMoves() v recordResult(),
+     takže se skóre nikdy nepřičetlo. Nyní je to `hotseatState`. */
   var STORAGE_KEY = 'sachy-hotseat';
-  var state = {
+  var hotseatState = {
     enabled: false,
     whiteName: 'Hráč 1',
     blackName: 'Hráč 2',
     score: { white: 0, black: 0, draws: 0 }
   };
 
-  /* ---------- Načtení / uložení ---------- */
   function loadState() {
     try {
       var raw = localStorage.getItem(STORAGE_KEY);
       if (!raw) return;
       var data = JSON.parse(raw);
-      if (typeof data.enabled === 'boolean') state.enabled = data.enabled;
-      if (data.whiteName) state.whiteName = String(data.whiteName).slice(0, 20);
-      if (data.blackName) state.blackName = String(data.blackName).slice(0, 20);
+      if (typeof data.enabled === 'boolean') hotseatState.enabled = data.enabled;
+      if (data.whiteName) hotseatState.whiteName = String(data.whiteName).slice(0, 20);
+      if (data.blackName) hotseatState.blackName = String(data.blackName).slice(0, 20);
       if (data.score && typeof data.score === 'object') {
-        state.score.white = parseInt(data.score.white, 10) || 0;
-        state.score.black = parseInt(data.score.black, 10) || 0;
-        state.score.draws = parseInt(data.score.draws, 10) || 0;
+        hotseatState.score.white = parseInt(data.score.white, 10) || 0;
+        hotseatState.score.black = parseInt(data.score.black, 10) || 0;
+        hotseatState.score.draws = parseInt(data.score.draws, 10) || 0;
       }
     } catch (e) {}
   }
   function saveState() {
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (e) {}
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(hotseatState)); } catch (e) {}
   }
 
-  /* ---------- UI ---------- */
   function injectUI() {
     var box = document.querySelectorAll('.panel .box');
-    // Najdeme box s "Nastavení hry"
     var target = null;
     for (var i = 0; i < box.length; i++) {
       var t = box[i].querySelector('.box-title');
       if (t && t.textContent.indexOf('Nastavení hry') >= 0) { target = box[i]; break; }
     }
     if (!target) return;
-
-    // Přidáme hot-seat sekci
     if (target.querySelector('#hotseatToggle')) return;
 
     var section = document.createElement('div');
@@ -106,12 +99,10 @@
     section.appendChild(resetBtn);
     target.appendChild(section);
 
-    /* Handlery */
-    toggle.querySelector('#hotseatToggle').checked = state.enabled;
+    toggle.querySelector('#hotseatToggle').checked = hotseatState.enabled;
     toggle.querySelector('#hotseatToggle').addEventListener('change', function (e) {
-      state.enabled = e.target.checked;
-      if (state.enabled) {
-        // Vypneme AI, hra začne znovu
+      hotseatState.enabled = e.target.checked;
+      if (hotseatState.enabled) {
         var ai = document.getElementById('aiToggle');
         if (ai && ai.checked) { ai.checked = false; }
         if (typeof aiEnabled !== 'undefined') aiEnabled = false;
@@ -124,23 +115,23 @@
 
     var inpW = names.querySelector('#hotseatWhite');
     var inpB = names.querySelector('#hotseatBlack');
-    inpW.value = state.whiteName;
-    inpB.value = state.blackName;
+    inpW.value = hotseatState.whiteName;
+    inpB.value = hotseatState.blackName;
     inpW.addEventListener('input', function () {
-      state.whiteName = inpW.value.trim().slice(0, 20) || 'Hráč 1';
+      hotseatState.whiteName = inpW.value.trim().slice(0, 20) || 'Hráč 1';
       saveState();
       updateStatusNames();
       updateScorePanel();
     });
     inpB.addEventListener('input', function () {
-      state.blackName = inpB.value.trim().slice(0, 20) || 'Hráč 2';
+      hotseatState.blackName = inpB.value.trim().slice(0, 20) || 'Hráč 2';
       saveState();
       updateStatusNames();
       updateScorePanel();
     });
 
     resetBtn.addEventListener('click', function () {
-      state.score = { white: 0, black: 0, draws: 0 };
+      hotseatState.score = { white: 0, black: 0, draws: 0 };
       saveState();
       updateScorePanel();
     });
@@ -151,18 +142,18 @@
 
   function updateNamesVisibility() {
     var n = document.getElementById('hotseatNames');
-    if (n) n.style.display = state.enabled ? 'flex' : 'none';
+    if (n) n.style.display = hotseatState.enabled ? 'flex' : 'none';
   }
 
   function updateScorePanel() {
     var el = document.getElementById('hotseatScore');
     if (!el) return;
-    var w = state.whiteName || 'Hráč 1';
-    var b = state.blackName || 'Hráč 2';
+    var w = hotseatState.whiteName || 'Hráč 1';
+    var b = hotseatState.blackName || 'Hráč 2';
     el.innerHTML = '' +
-      '<span><b>' + esc(w) + '</b>: ' + state.score.white + '</span>' +
-      '<span>Remízy: ' + state.score.draws + '</span>' +
-      '<span><b>' + esc(b) + '</b>: ' + state.score.black + '</span>';
+      '<span><b>' + esc(w) + '</b>: ' + hotseatState.score.white + '</span>' +
+      '<span>Remízy: ' + hotseatState.score.draws + '</span>' +
+      '<span><b>' + esc(b) + '</b>: ' + hotseatState.score.black + '</span>';
   }
 
   function esc(s) {
@@ -171,20 +162,14 @@
     });
   }
 
-  /* ---------- Změna textu ve status liště ---------- */
   function updateStatusNames() {
-    if (!state.enabled) return;
+    if (!hotseatState.enabled) return;
     var el = document.getElementById('status');
     if (!el) return;
-    // Zjistíme aktuální stav ze hry (globální `turn`)
     if (typeof turn === 'undefined') return;
-    var name = turn === 'w' ? state.whiteName : state.blackName;
+    var name = turn === 'w' ? hotseatState.whiteName : hotseatState.blackName;
     var color = turn === 'w' ? 'Bílý' : 'Černý';
-    var isCheck = typeof inCheck === 'function' && typeof board !== 'undefined' && typeof state_chess !== 'undefined'
-      ? false : false;
-    // Jednoduše přepíšeme text (původní "Na tahu: X" nebo "Na tahu: X (počítač)")
     var txt = 'Na tahu: ' + name + ' (' + color + ')';
-    // Zkontrolujeme šach
     try {
       if (typeof inCheck === 'function' && typeof board !== 'undefined' && typeof state !== 'undefined') {
         if (inCheck(board, turn, state)) txt += ' – šach!';
@@ -194,7 +179,6 @@
     el.classList.toggle('check', /šach/.test(txt));
   }
 
-  /* ---------- Hák do updateStatus (aby status ukazoval jména) ---------- */
   function hookStatus() {
     if (typeof window.updateStatus !== 'function') {
       setTimeout(hookStatus, 200);
@@ -203,49 +187,43 @@
     var _orig = window.updateStatus;
     window.updateStatus = function () {
       _orig.apply(this, arguments);
-      if (state.enabled) {
-        // Až po původním updateStatus přepíšeme text
+      if (hotseatState.enabled) {
         try { updateStatusNames(); } catch (e) {}
       }
     };
   }
 
-  /* ---------- Detekce konce partie (skóre) ---------- */
   var lastResultKey = '';
 
   function recordResult() {
-    if (!state.enabled) return;
+    if (!hotseatState.enabled) return;
     if (typeof gameOver === 'undefined' || !gameOver) return;
-    if (typeof board === 'undefined' || typeof turn === 'undefined') return;
+    if (typeof board === 'undefined' || typeof turn === 'undefined' || typeof state === 'undefined') return;
 
-    // Jedinečný klíč podle UCI historie
     var key = (typeof uciHistory !== 'undefined' && uciHistory) ? uciHistory.join(',') : '';
     if (!key || key === lastResultKey) return;
     lastResultKey = key;
 
     var moves;
     try { moves = getAllLegalMoves(board, turn, state); } catch (e) { return; }
-    if (moves.length > 0) return; // hra neskončila
+    if (moves.length > 0) return;
 
     var check = false;
     try { check = inCheck(board, turn, state); } catch (e) {}
 
     if (check) {
-      // Mat – vítězí protihráč tahu, který je na tahu
-      if (turn === 'w') state.score.black += 1;
-      else state.score.white += 1;
+      if (turn === 'w') hotseatState.score.black += 1;
+      else hotseatState.score.white += 1;
     } else {
-      // Pat / remíza
-      state.score.draws += 1;
+      hotseatState.score.draws += 1;
     }
     saveState();
     updateScorePanel();
 
-    // Přepiš status na "Konec"
     var el = document.getElementById('status');
     if (el) {
       if (check) {
-        var winner = turn === 'w' ? state.blackName : state.whiteName;
+        var winner = turn === 'w' ? hotseatState.blackName : hotseatState.whiteName;
         el.textContent = 'Mat! Vyhrává ' + winner + '.';
       } else {
         el.textContent = 'Pat – remíza.';
@@ -253,10 +231,8 @@
     }
   }
 
-  /* Periodická kontrola konce partie – jednoduché a spolehlivé */
   setInterval(function () { recordResult(); }, 800);
 
-  /* ---------- Init ---------- */
   function init() {
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', function () { setTimeout(start, 150); });
@@ -268,7 +244,7 @@
     loadState();
     injectUI();
     hookStatus();
-    if (state.enabled) updateStatusNames();
+    if (hotseatState.enabled) updateStatusNames();
   }
   init();
 })();

@@ -1,7 +1,15 @@
 /* =========================================================================
-   Šachy – Multiplayer server (+ turnaje s opakováním remíz)
+   Šachy – Multiplayer server
    Autor: Better DeepSeek (AI) · Zadavatel: Jan Hošek · 2026
    SPDX-License-Identifier: GPL-3.0-or-later
+
+   OPRAVY:
+   - Po každém tahu se kontrolují remízová pravidla (50 tahů, trojí
+     opakování, nedostatečný materiál).
+   - room.halfmoveClock se správně inkrementuje (pěšec / braní = reset).
+   - room.positionHashes pro trojí opakování.
+   - sendFullState posílá i `state` (rošáda, en passant), aby klient
+     mohl rekonstruovat legální tahy.
    ========================================================================= */
 
 const path = require('path');
@@ -83,7 +91,6 @@ setInterval(() => {
   }
 }, 1000);
 
-/* Když zápas v turnaji skončí, zaznamenej výsledek nebo připrav rematch */
 function handleTournamentRoomEnd(room, result) {
   const t = T.getTournamentByRoom(room.id);
   if (!t) return;
@@ -91,10 +98,8 @@ function handleTournamentRoomEnd(room, result) {
   if (!m) return;
 
   if (result === '1/2-1/2') {
-    // Remíza → opakovat s prohozenými barvami
     const res = T.recordMatchResult(t, m.id, null, null, { isDraw: true });
     if (res.rematch) {
-      broadcast(t.players, null);
       broadcastTournament(t, {
         info: 'Remíza – partie se opakuje s prohozenými barvami (' + m.replayCount + '/' + T.MAX_REPLAYS + ').'
       });
@@ -112,17 +117,13 @@ function handleTournamentRoomEnd(room, result) {
   const res = T.recordMatchResult(t, m.id, winnerId, winnerNick);
   if (res.ok) {
     let info = 'Vítěz zápasu: ' + winnerNick;
-    if (m.replayCount && m.replayCount > 0) {
-      info += ' (po ' + m.replayCount + ' remízách)';
-    }
+    if (m.replayCount && m.replayCount > 0) info += ' (po ' + m.replayCount + ' remízách)';
     broadcastTournament(t, { info: info });
   }
 }
 
-/* Pošle stav turnaje všem zúčastněným i divákům */
 function broadcastTournament(t, extra) {
   const sent = new Set();
-  // Aktivní hráči s otevřeným WS
   for (const p of t.players) {
     for (const room of R.rooms.values()) {
       for (const c of [room.white, room.black]) {
@@ -133,7 +134,6 @@ function broadcastTournament(t, extra) {
       }
     }
   }
-  // Sledující
   for (const ws of tournamentWatchers.get(t.id) || []) {
     if (!sent.has(ws)) send(ws, Object.assign({ type: 'tournament-state', tournament: publicTournamentState(t, ws.user ? ws.user.id : null) }, extra || {}));
   }
@@ -231,10 +231,13 @@ function onJoinRoom(ws, msg) {
   broadcast(room, { type: 'players-updated', white: publicPlayer(room.white), black: publicPlayer(room.black) });
 }
 function publicPlayer(p) { return p ? { id: p.id, nickname: p.nickname, rating: p.rating } : null; }
+
+/* OPRAVA: posílá i `state` (rošáda, en passant), aby klient měl kompletní stav. */
 function sendFullState(ws, room) {
   send(ws, {
     type: 'state', roomId: room.id, isPublic: room.isPublic, status: room.status,
-    board: room.board, turn: room.turn, uciHistory: room.uciHistory,
+    board: room.board, state: room.state, turn: room.turn, uciHistory: room.uciHistory,
+    halfmoveClock: room.halfmoveClock, fullmoveNumber: room.fullmoveNumber,
     white: publicPlayer(room.white), black: publicPlayer(room.black),
     spectators: room.spectators.size, chat: room.chat.slice(-50),
     clock: R.clockSnapshot(room), result: room.result, endReason: room.endReason, myRole: ws.role
@@ -247,6 +250,8 @@ function onSpectate(ws, msg) {
   room.spectators.add(ws); ws.roomId = room.id; ws.role = 'spectator';
   sendFullState(ws, room);
 }
+
+/* OPRAVA: po tahu se kontrolují remízová pravidla + halfmoveClock + positionHashes. */
 function onMove(ws, msg) {
   const room = R.getRoom(ws.roomId);
   if (!room) return send(ws, { type: 'error', message: 'Nejsi v místnosti.' });
@@ -261,17 +266,33 @@ function onMove(ws, msg) {
     m.to.r === to.r && m.to.c === to.c &&
     (!m.promotion || m.promotion === promo));
   if (!move) return send(ws, { type: 'error', message: 'Nelegální tah.' });
+
   const moverColor = room.turn;
+  const piece = room.board[move.from.r][move.from.c];
+  const captured = move.enPassant ? { type: 'p' } : room.board[move.to.r][move.to.c];
+
   E.applyMove(room.board, move, room.state);
   const uci = E.moveToUCI(move);
   room.uciHistory.push(uci);
+
+  /* halfmoveClock: reset při tahu pěšcem nebo při braní, jinak ++ */
+  if (piece && piece.type === 'p' || captured) room.halfmoveClock = 0;
+  else room.halfmoveClock++;
+
   if (room.turn === 'b') room.fullmoveNumber++;
   room.turn = E.other(room.turn);
+
+  /* Trojí opakování */
+  const h = E.hashPosition(room.board, room.state, room.turn);
+  room.positionHashes.set(h, (room.positionHashes.get(h) || 0) + 1);
+
   if (moverColor === 'w') room.whiteTimeMs += R.INCREMENT_MS; else room.blackTimeMs += R.INCREMENT_MS;
   room.lastTickAt = Date.now();
   broadcast(room, { type: 'move', from: msg.from, to: msg.to, promotion: promo, uci });
   sendClock(room);
   notifyOpponent(room, moverColor).catch(function (err) { console.warn('[push]', err); });
+
+  /* --- Kontrola konců --- */
   const legal2 = E.getAllLegalMoves(room.board, room.turn, room.state);
   if (legal2.length === 0) {
     const inChk = E.inCheck(room.board, room.turn, room.state);
@@ -285,7 +306,19 @@ function onMove(ws, msg) {
       broadcast(room, { type: 'game-over', result: '1/2-1/2', reason: 'stalemate' });
       handleTournamentRoomEnd(room, '1/2-1/2');
     }
+    return;
   }
+
+  /* Remízová pravidla (50 tahů / trojí opakování / nedostatečný materiál) */
+  const drawCheck = R.checkDrawRules(room);
+  if (drawCheck) {
+    R.endGame(room, '1/2-1/2', drawCheck.reason);
+    broadcast(room, { type: 'game-over', result: '1/2-1/2', reason: drawCheck.reason });
+    handleTournamentRoomEnd(room, '1/2-1/2');
+    return;
+  }
+
+  R.saveActive(room);
 }
 function onChat(ws, msg) {
   const room = R.getRoom(ws.roomId);
@@ -420,48 +453,4 @@ function onStartTournamentMatch(ws, msg) {
   if (!m.whiteId || !m.blackId) return send(ws, { type: 'error', message: 'Čeká se na vítěze předchozího zápasu.' });
   if (m.roomId) return send(ws, { type: 'error', message: 'Zápas už běží.' });
 
-  const room = R.createRoom({ isPublic: true, hostUserId: m.whiteId });
-  room.white = { id: m.whiteId, nickname: m.whiteNick, rating: 1200, ws: null };
-  room.black = { id: m.blackId, nickname: m.blackNick, rating: 1200, ws: null };
-  R.startGame(room);
-  T.assignRoomToMatch(t, m.id, room.id);
-  broadcastTournament(t);
-}
-
-function registerWatcher(tid, ws) {
-  if (!tournamentWatchers.has(tid)) tournamentWatchers.set(tid, new Set());
-  tournamentWatchers.get(tid).add(ws);
-}
-
-function handleDisconnect(ws) {
-  if (!ws.roomId) return;
-  const room = R.getRoom(ws.roomId);
-  if (!room) return;
-  if (ws.role === 'w' || ws.role === 'b') {
-    if (ws.role === 'w' && room.white) room.white.ws = null;
-    else if (ws.role === 'b' && room.black) room.black.ws = null;
-    if (room.status === 'playing') {
-      room.disconnectColor = ws.role;
-      broadcast(room, { type: 'player-disconnected', color: ws.role, timeoutMs: R.RECONNECT_MS });
-      if (room.disconnectTimer) clearTimeout(room.disconnectTimer);
-      room.disconnectTimer = setTimeout(() => {
-        if (room.status !== 'playing') return;
-        const result = ws.role === 'w' ? '0-1' : '1-0';
-        R.endGame(room, result, 'forfeit');
-        broadcast(room, { type: 'game-over', result, reason: 'forfeit' });
-        handleTournamentRoomEnd(room, result);
-      }, R.RECONNECT_MS);
-    } else if (room.status === 'waiting') {
-      if (ws.role === 'w') room.white = null; else room.black = null;
-      if (!room.white && !room.black) R.deleteRoom(room.id);
-      else broadcast(room, { type: 'players-updated', white: publicPlayer(room.white), black: publicPlayer(room.black) });
-    }
-  } else if (ws.role === 'spectator') {
-    room.spectators.delete(ws);
-  }
-}
-
-R.restoreRooms();
-server.listen(PORT, HOST, () => {
-  console.log('[sachy-server] Běží na http://' + HOST + ':' + PORT);
-});
+  const room = R.createRoom({ isPublic: true, host

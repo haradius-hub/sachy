@@ -1,35 +1,31 @@
-# Šachy – Caddy konfigurace pro subpath /chess/
+# Šachy – Caddy konfigurace pro subpath /chess/  (FIXED: WS path)
 # Autor: Better DeepSeek (AI) · Zadavatel: Jan Hošek · 2026
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
-# Předpoklad:
-#   - Caddy běží s automatickým HTTPS (Let's Encrypt)
-#   - Multiplayer server poslouchá na 127.0.0.1:8081
-#   - Statické soubory hry se servírují ze /var/www/chess (subpath)
+# OPRAVA: `handle_path` (nikoli `handle`) pro WS cestu.
+# `handle_path` odstraní prefix /chess, takže backend dostane /ws
+# (server naslouchá na `new WebSocketServer({ path: '/ws' })`).
 #
 # Nahraď "tvuj-web.cz" svou doménou.
 
 tvuj-web.cz {
+    # WebSocket na /chess/ws  → backend vidí /ws
+    handle_path /chess/ws {
+        reverse_proxy 127.0.0.1:8081
+    }
+
+    # REST API serveru (leaderboard, health, PGN) → backend vidí /api/*
+    handle_path /chess/api/* {
+        reverse_proxy 127.0.0.1:8081
+    }
+
     # Statické soubory hry na /chess/
     handle_path /chess/* {
         root * /var/www/chess
         file_server
     }
 
-    # WebSocket na /chess/ws (upgrade na backend)
-    @sachy_ws {
-        path /chess/ws
-    }
-    handle @sachy_ws {
-        reverse_proxy 127.0.0.1:8081
-    }
-
-    # REST API serveru (leaderboard, health)
-    handle_path /chess/api/* {
-        reverse_proxy 127.0.0.1:8081
-    }
-
-    # Tady může být zbytek webu (FlatCMS) – nahraď dle potřeby
+    # Zbytek webu (FlatCMS) – uprav dle potřeby
     # handle {
     #     reverse_proxy 127.0.0.1:8000
     # }

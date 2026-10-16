@@ -2,6 +2,8 @@
    SQLite – uživatelé, sessions, partie, historie, push subscription.
    Autor: Better DeepSeek (AI) · Zadavatel: Jan Hošek · 2026
    SPDX-License-Identifier: GPL-3.0-or-later
+
+   OPRAVA: přidán getUserById() pro potřeby turnajového ELO rozřazení.
    ========================================================================= */
 
 const Database = require('better-sqlite3');
@@ -129,6 +131,13 @@ function gamePgn(gameId) {
   return row ? row.pgn : null;
 }
 
+/* ---------- NOVÉ: ELO lookup pro turnaje ---------- */
+function getUserById(id) {
+  if (!id) return null;
+  const row = db.prepare('SELECT id, nickname, rating FROM users WHERE id = ?').get(id);
+  return row ? { id: row.id, nickname: row.nickname, rating: row.rating } : null;
+}
+
 /* ---------- Push subscriptions ---------- */
 function savePushSubscription(userId, subscription) {
   if (!userId || !subscription || !subscription.endpoint) return;
@@ -149,5 +158,6 @@ module.exports = {
   registerOrLogin, userByToken, updateRating, saveGame,
   saveActiveGame, deleteActiveGame, loadActiveGames, getTopPlayers,
   gamesByUser, gamePgn,
+  getUserById,
   savePushSubscription, removePushSubscription, pushSubscriptionsByUser
 };

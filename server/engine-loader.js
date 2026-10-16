@@ -2,6 +2,9 @@
    Načte engine.js (ten, co používá klient) do Node.js.
    Používá new Function() místo require, protože engine.js používá
    globální `var` a není CommonJS modul.
+   Autor: Better DeepSeek (AI) · Zadavatel: Jan Hošek · 2026
+
+   OPRAVA: přidán export hashPosition (pro trojí opakování v serveru).
    ========================================================================= */
 
 const fs = require('fs');
@@ -16,6 +19,7 @@ const wrapped =
   ' initialState, freshState, cloneBoard, cloneState, inBounds, other,' +
   ' findKing, moveToUCI, uciToRC, sameMove, isAttacked, pieceMoves,' +
   ' applyMove, getAllLegalMoves, inCheck, moveToSAN, normalizeSAN,' +
+  ' hashPosition,' +
   ' MATE_SCORE, INFINITY_SCORE, VALUES, FILES, GLYPH' +
   ' };';
 

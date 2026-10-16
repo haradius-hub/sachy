@@ -3,14 +3,11 @@
    Autor: Better DeepSeek (AI) · Zadavatel: Jan Hošek · 2026
    SPDX-License-Identifier: GPL-3.0-or-later
 
-   Pravidla:
-     - 4, 8 nebo 16 hráčů (mocnina dvou)
-     - Single elimination (jeden zápas, kdo prohraje, vypadává)
-     - Remíza: partie se opakuje s PROHOZENÝMI barvami
-       (tj. kdo měl bílé, teď hraje černé a naopak)
-     - Po 5 remízách v řadě se rozhodne podle ELO (krajní řešení,
-       aby turnaj mohl skončit)
+   OPRAVA: resolveByElo nyní načítá reálné ELO z databáze (dřív oba hráči
+   měli rating undefined → 1200, takže vždy vyhrál bílý).
    ========================================================================= */
+
+const db = require('./db');
 
 const ALLOWED_SIZES = [4, 8, 16];
 const MAX_REPLAYS = 5;
@@ -99,7 +96,7 @@ function startTournament(tid, userId) {
         winnerNick: null,
         status: 'pending',
         replayCount: 0,
-        previousRooms: [] // historie odchraných pokusů (pro případnou analýzu)
+        previousRooms: []
       });
     }
     bracket.push(round);
@@ -128,28 +125,19 @@ function getMatch(t, matchId) {
   return t.matches.find(m => m.id === matchId) || null;
 }
 
-/*
-  Zaznamená výsledek zápasu.
-  Při remíze vrátí { rematch:true, match } a připraví zápas na opakování
-  s prohozenými barvami. Po MAX_REPLAYS remízách se rozhodne podle ELO.
-  Při vítězství postoupí vítěz.
-*/
 function recordMatchResult(t, matchId, winnerId, winnerNick, opts) {
   const m = getMatch(t, matchId);
   if (!m) return { error: 'Zápas nenalezen.' };
   if (m.status === 'done') return { error: 'Zápas už má výsledek.' };
 
-  // Remíza s prohozením barev
   if (opts && opts.isDraw) {
     m.replayCount = (m.replayCount || 0) + 1;
     if (m.roomId) m.previousRooms.push(m.roomId);
 
-    // Po MAX_REPLAYS remíz se rozhodne podle ELO
     if (m.replayCount >= MAX_REPLAYS) {
       return resolveByElo(t, m);
     }
 
-    // Prohoď barvy a připrav rematch
     const tmpId = m.whiteId;
     const tmpNick = m.whiteNick;
     m.whiteId = m.blackId;
@@ -161,7 +149,6 @@ function recordMatchResult(t, matchId, winnerId, winnerNick, opts) {
     return { ok: true, tournament: t, rematch: true, match: m };
   }
 
-  // Rozhodující výsledek
   m.winnerId = winnerId;
   m.winnerNick = winnerNick;
   m.status = 'done';
@@ -186,21 +173,22 @@ function recordMatchResult(t, matchId, winnerId, winnerNick, opts) {
   return { ok: true, tournament: t };
 }
 
-/* Krajní řešení – po mnoha remízách rozhodne ELO hráčů. */
+/* Krajní řešení – po mnoha remízách rozhodne reálné ELO z DB. */
 function resolveByElo(t, m) {
-  const white = t.players.find(p => p.userId === m.whiteId);
-  const black = t.players.find(p => p.userId === m.blackId);
-  // Fallback: pokud nemáme ELO, rozhodne aktuální hráč s bílými
+  const whiteUser = db.getUserById(m.whiteId);
+  const blackUser = db.getUserById(m.blackId);
+  const wRating = (whiteUser && whiteUser.rating) || 1200;
+  const bRating = (blackUser && blackUser.rating) || 1200;
+
   let winnerId, winnerNick;
-  if (white && black) {
-    // Použijeme rating z dat (může být 1200 default)
-    const wRating = white.rating || 1200;
-    const bRating = black.rating || 1200;
-    if (wRating >= bRating) { winnerId = m.whiteId; winnerNick = m.whiteNick; }
+  if (wRating > bRating) { winnerId = m.whiteId; winnerNick = m.whiteNick; }
+  else if (bRating > wRating) { winnerId = m.blackId; winnerNick = m.blackNick; }
+  else {
+    // Naprostá shoda → losni
+    if (Math.random() < 0.5) { winnerId = m.whiteId; winnerNick = m.whiteNick; }
     else { winnerId = m.blackId; winnerNick = m.blackNick; }
-  } else {
-    winnerId = m.whiteId; winnerNick = m.whiteNick;
   }
+
   m.winnerId = winnerId;
   m.winnerNick = winnerNick;
   m.status = 'done';
