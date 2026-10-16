@@ -1,0 +1,108 @@
+/*
+  Šachy – style-net.css (multiplayer + turnaje)
+  Autor: Better DeepSeek (AI) · Zadavatel: Jan Hošek · 2026
+  SPDX-License-Identifier: GPL-3.0-or-later
+*/
+
+.mp-modal { max-width: 780px; }
+.mp-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin-bottom: 12px; flex-wrap: wrap; }
+.mp-tab {
+  padding: 8px 14px; background: transparent; border: none;
+  border-bottom: 2px solid transparent; color: var(--muted);
+  font-size: 13.5px; font-weight: 600; cursor: pointer;
+  font-family: inherit; transition: color .15s ease, border-color .15s ease;
+}
+.mp-tab:hover { color: var(--ink); }
+.mp-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+.mp-status {
+  font-size: 13.5px; color: var(--muted); padding: 8px 12px;
+  background: var(--hover-bg); border-radius: 8px; margin-bottom: 14px;
+  font-variant-numeric: tabular-nums;
+}
+.mp-area { display: flex; flex-direction: column; gap: 14px; overflow-y: auto; flex: 1; padding-right: 4px; }
+.mp-area[hidden] { display: none; }
+.mp-section { background: var(--hover-bg); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+.mp-section h3 { margin: 0 0 10px; font-size: 14px; font-weight: 700; }
+.mp-section .field { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; font-size: 14px; }
+.mp-section input[type='text'], .mp-section input[type='password'] {
+  padding: 7px 10px; border-radius: 8px; border: 1px solid var(--line);
+  background: var(--input-bg); font-size: 13px; color: var(--ink); font-family: inherit; min-width: 160px;
+}
+.mp-section .controls { display: flex; gap: 8px; flex-wrap: wrap; }
+.mp-section .controls .btn { flex: 0 0 auto; padding: 8px 14px; font-size: 13px; }
+.mp-section code { background: var(--card); padding: 2px 6px; border-radius: 4px; font-size: 12px; word-break: break-all; }
+
+.mp-room-list { display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
+.mp-room-row { display: flex; align-items: center; gap: 10px; padding: 8px 10px; background: var(--card); border: 1px solid var(--line); border-radius: 8px; }
+.mp-room-row span { flex: 1; }
+.mp-room-row .btn { flex: 0 0 auto; padding: 5px 10px; font-size: 12px; }
+
+.mp-clock { display: flex; flex-direction: column; gap: 6px; }
+.mp-clock-row { display: flex; justify-content: space-between; font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+.mp-chat { max-height: 180px; overflow-y: auto; font-size: 13px; padding: 8px 10px; background: var(--card); border-radius: 8px; border: 1px solid var(--line); display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; }
+.mp-chat-line { color: var(--ink); word-break: break-word; }
+.mp-chat-line b { color: var(--accent); }
+
+.mp-history-list { display: flex; flex-direction: column; gap: 4px; }
+.mp-hist-row { display: grid; grid-template-columns: 110px 1fr 60px auto; gap: 8px; align-items: center; padding: 6px 8px; background: var(--card); border: 1px solid var(--line); border-radius: 8px; font-size: 12.5px; }
+.mp-hist-date { color: var(--muted); font-variant-numeric: tabular-nums; }
+.mp-hist-players { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mp-hist-result { font-weight: 700; text-align: center; }
+.mp-hist-win { color: #4d9c56; }
+.mp-hist-loss { color: #d43a3a; }
+.mp-hist-draw { color: var(--muted); }
+.mp-hist-neutral { color: var(--muted); }
+.mp-hist-row .btn { padding: 4px 10px; font-size: 11.5px; flex: 0 0 auto; }
+
+.mp-leaderboard { display: flex; flex-direction: column; gap: 4px; }
+.mp-lb-row { display: grid; grid-template-columns: 40px 1fr 60px 80px; gap: 8px; align-items: center; padding: 6px 8px; background: var(--card); border: 1px solid var(--line); border-radius: 8px; font-size: 13px; }
+.mp-lb-rank { color: var(--muted); font-weight: 700; }
+.mp-lb-name { font-weight: 600; }
+.mp-lb-rating { font-weight: 700; color: var(--accent); font-variant-numeric: tabular-nums; text-align: right; }
+.mp-lb-games { color: var(--muted); font-size: 12px; }
+
+.mp-tournament-list { display: flex; flex-direction: column; gap: 6px; }
+.mp-player-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.mp-chip { background: var(--card); border: 1px solid var(--line); border-radius: 999px; padding: 4px 12px; font-size: 13px; color: var(--ink); }
+.mp-chip-me { border-color: var(--accent); background: rgba(77, 107, 254, 0.10); color: var(--accent); font-weight: 600; }
+.mp-chip-out { opacity: 0.45; text-decoration: line-through; }
+.mp-winner { text-align: center; font-size: 16px; padding: 16px; border-color: var(--accent); }
+.mp-winner b { color: var(--accent); }
+
+.bracket { display: flex; gap: 16px; overflow-x: auto; padding: 8px 0; }
+.bracket-round { display: flex; flex-direction: column; gap: 12px; min-width: 200px; justify-content: space-around; }
+.bracket-round-title { font-size: 12px; text-transform: uppercase; letter-spacing: 0.4px; color: var(--muted); font-weight: 700; text-align: center; padding-bottom: 6px; border-bottom: 1px solid var(--line); margin-bottom: 4px; }
+
+.bracket-match {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-size: 13px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.bracket-match.status-ready { border-color: var(--accent); }
+.bracket-match.status-playing { border-color: #4d9c56; background: rgba(77, 156, 86, 0.08); }
+.bracket-match.status-done { opacity: 0.85; }
+
+.bracket-players { display: flex; flex-direction: column; gap: 2px; }
+.bracket-p { padding: 3px 6px; border-radius: 4px; }
+.bracket-p:nth-child(1) { background: rgba(77, 107, 254, 0.08); }
+.bracket-p:nth-child(2) { background: rgba(0, 0, 0, 0.04); }
+.bracket-info { font-size: 11px; color: var(--muted); display: flex; justify-content: space-between; align-items: center; gap: 6px; flex-wrap: wrap; }
+.bracket-win { color: #4d9c56; font-weight: 700; }
+.bracket-replay-badge { color: #d49c2e; font-weight: 700; font-size: 10.5px; padding: 1px 6px; background: rgba(212, 156, 46, 0.15); border-radius: 999px; }
+.bracket-actions { display: flex; gap: 4px; }
+.bracket-actions .btn { flex: 0 0 auto; padding: 4px 10px; font-size: 11.5px; }
+
+@media (max-width: 640px) {
+  .mp-hist-row { grid-template-columns: 1fr auto; grid-template-rows: auto auto; gap: 4px 8px; }
+  .mp-hist-date { grid-column: 1 / -1; font-size: 11px; }
+  .mp-lb-row { grid-template-columns: 30px 1fr 50px; }
+  .mp-lb-games { display: none; }
+  .bracket-round { min-width: 160px; }
+}
