@@ -1,0 +1,36 @@
+# Soubory k smazání
+
+Autor: Better DeepSeek (AI) · Zadavatel: Jan Hošek · 2026
+
+Tyto soubory jsou duplikáty nebo historické záznamy. Smaž je z repa:
+
+## 1. LICENSE.txt
+
+Duplikát `LICENSE` (plný text GPL-3.0). Máš oba:
+
+- `LICENSE` — krátký úvod + odkaz na plný text
+- `LICENSE.txt` — plný text
+
+**Ponech `LICENSE`** (odkazuje na něj README a ostatní soubory).
+`LICENSE.txt` smaž.
+
+Důvod: standard GPL projekt má jeden soubor `LICENSE` (bez přípony).
+
+## 2. MULTIPLAYER-OTAZKY.md
+
+Historický záznam rozhodnutí o multiplayeru (otázky a odpovědi).
+Aktuální stav je v `MULTIPLAYER.md`.
+
+**Smaž**, nebo přesuň do `docs/historie/`, pokud chceš zachovat.
+
+## Postup (git)
+
+```
+git rm LICENSE.txt
+git rm MULTIPLAYER-OTAZKY.md
+git commit -m "Úklid: smazán duplikát LICENSE a historický MULTIPLAYER-OTAZKY"
+git push
+```
+
+Nebo na Windows v Průzkumníkovi: označ → Delete, pak `git add -A`
+a commit.
