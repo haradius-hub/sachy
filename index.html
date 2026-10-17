@@ -1,10 +1,10 @@
-<!DOCTYPE html>
-<!--
+<!DOCTYPE html><!--
   Šachy – hra do prohlížeče
   Autor: Better DeepSeek (AI) · Zadavatel: Jan Hošek · 2026
   SPDX-License-Identifier: GPL-3.0-or-later
--->
-<html lang="cs">
+
+  Fáze B, 6. část: přidán client-server-ai.js (server-side AI).
+--><html lang="cs">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -14,7 +14,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Šachy">
-<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.svg">
 <link rel="stylesheet" href="style.css">
 <link rel="stylesheet" href="style-extras.css">
 <link rel="stylesheet" href="style-net.css">
@@ -24,47 +24,31 @@
   <header class="head">
     <h1>Šachy</h1>
     <p class="sub">Dvouhráčová hra, proti počítači, AI vs AI, multiplayer, turnaje</p>
-  </header>
-
-  <main class="main">
+  </header>  <main class="main">
     <div class="board-area">
       <div class="eval-bar" title="Hodnocení pozice">
         <div class="eval-fill" id="evalFill" style="width:50%"></div>
         <span class="eval-label" id="evalLabel">0.00</span>
-      </div>
-
-      <div class="board-frame" id="boardFrame">
+      </div>      <div class="board-frame" id="boardFrame">
         <div class="coords coords-files coords-top" id="filesTop"></div>
         <div class="coords coords-ranks coords-left" id="ranksLeft"></div>
         <div class="board" id="board"></div>
         <div class="coords coords-ranks coords-right" id="ranksRight"></div>
         <div class="coords coords-files coords-bottom" id="filesBottom"></div>
-      </div>
-
-      <div class="board-controls">
+      </div>      <div class="board-controls">
         <button id="rotateBtn" class="btn btn-outline">Otočit</button>
         <button id="puzzleBtn" class="btn btn-outline">Hádanky</button>
       </div>
-    </div>
-
-    <aside class="panel">
-      <div class="status" id="status">Na tahu: Bílý</div>
-
-      <div class="controls">
+    </div>    <aside class="panel">
+      <div class="status" id="status">Na tahu: Bílý</div>      <div class="controls">
         <button id="newGame" class="btn">Nová hra</button>
         <button id="undo" class="btn btn-outline">Zpět</button>
-      </div>
-
-      <div class="controls">
+      </div>      <div class="controls">
         <button id="hintBtn" class="btn btn-outline">Napověz tah</button>
         <button id="analyzeBtn" class="btn btn-outline">Analyzovat</button>
-      </div>
-
-      <div class="controls" id="mpControls">
+      </div>      <div class="controls" id="mpControls">
         <button id="mpBtn" class="btn btn-outline">Multiplayer</button>
-      </div>
-
-      <div class="box">
+      </div>      <div class="box">
         <div class="box-title">Partie</div>
         <div class="controls">
           <button id="saveBtn" class="btn btn-outline">Uložit</button>
@@ -77,15 +61,11 @@
         <div class="controls">
           <button id="shareBtn" class="btn btn-outline">Sdílet odkaz</button>
         </div>
-      </div>
-
-      <div class="box">
+      </div>      <div class="box">
         <div class="box-title">FEN</div>
         <input type="text" id="fenInput" class="fen-input" readonly>
         <button id="copyFenBtn" class="btn btn-outline" style="margin-top:8px;width:100%">Kopírovat FEN</button>
-      </div>
-
-      <div class="box">
+      </div>      <div class="box">
         <div class="box-title">Vzhled</div>
         <label class="field">
           <span class="field-label">Téma</span>
@@ -97,10 +77,7 @@
         </label>
         <label class="toggle"><input type="checkbox" id="soundToggle" checked><span>Zvuky</span></label>
         <label class="toggle"><input type="checkbox" id="threatToggle"><span>Zvýraznit ohrožené figury</span></label>
-        <!-- Lehký režim (lite-mode.js), Hlásit garde (garde.js) se vloží zde -->
-      </div>
-
-      <div class="box">
+      </div>      <div class="box">
         <div class="box-title">Nastavení hry</div>
         <label class="field">
           <span class="field-label">Hraji za</span>
@@ -129,28 +106,20 @@
             <option value="1200">Pomalu</option>
           </select>
         </div>
-      </div>
-
-      <div class="box">
+      </div>      <div class="box">
         <div class="box-title">Zajaté figurky</div>
         <div class="cap-row"><span class="cap-label">Bílý:</span><span id="capByWhite" class="cap-pieces"></span></div>
         <div class="cap-row"><span class="cap-label">Černý:</span><span id="capByBlack" class="cap-pieces"></span></div>
-      </div>
-
-      <div class="box history-box">
+      </div>      <div class="box history-box">
         <div class="box-title">Tahy</div>
         <ol id="moveList" class="move-list"></ol>
-      </div>
-
-      <div class="box shortcuts">
+      </div>      <div class="box shortcuts">
         <div class="box-title">Zkratky</div>
         <div class="shortcut-row"><kbd>N</kbd> nová · <kbd>Z</kbd> zpět · <kbd>H</kbd> nápověda · <kbd>A</kbd> analýza · <kbd>M</kbd> multiplayer · <kbd>Esc</kbd> zavřít · <kbd>Ctrl</kbd>+<kbd>S</kbd> uložit</div>
       </div>
     </aside>
   </main>
-</div>
-
-<div class="modal-backdrop" id="importModal" hidden>
+</div><div class="modal-backdrop" id="importModal" hidden>
   <div class="modal">
     <h2>Import partie</h2>
     <p class="modal-desc">Vlož PGN v SAN (např. 1. e4 e5 2. Nf3) nebo UCI (např. e2e4 e7e5).</p>
@@ -160,9 +129,7 @@
       <button id="importConfirm" class="btn">Importovat</button>
     </div>
   </div>
-</div>
-
-<div class="modal-backdrop" id="promoModal" hidden>
+</div><div class="modal-backdrop" id="promoModal" hidden>
   <div class="modal promo-modal">
     <h2>Vyber proměnu</h2>
     <div class="promo-buttons">
@@ -172,9 +139,7 @@
       <button class="promo-btn" data-piece="n">♞</button>
     </div>
   </div>
-</div>
-
-<div class="modal-backdrop" id="reportModal" hidden>
+</div><div class="modal-backdrop" id="reportModal" hidden>
   <div class="modal report-modal">
     <div class="report-head">
       <h2 id="reportTitle">Report partie</h2>
@@ -185,9 +150,7 @@
       <button id="reportCloseBtn" class="btn btn-outline">Zavřít</button>
     </div>
   </div>
-</div>
-
-<div class="modal-backdrop" id="puzzleModal" hidden>
+</div><div class="modal-backdrop" id="puzzleModal" hidden>
   <div class="modal">
     <div class="report-head">
       <h2>Hádanky</h2>
@@ -198,30 +161,5 @@
       <button id="puzzleCloseBtn" class="btn btn-outline">Zavřít</button>
     </div>
   </div>
-</div>
-
-<div class="toast" id="toast" hidden></div>
-
-<script src="engine.js"></script>
-<script src="openings-extra.js"></script>
-<script src="game.js"></script>
-<script src="analysis.js"></script>
-<script src="analysis-export.js"></script>
-<script src="extras.js"></script>
-<script src="ui-extras.js"></script>
-<script src="puzzles.js"></script>
-<script src="puzzles-v2.js"></script>
-<script src="hotseat.js"></script>
-<script src="lite-mode.js"></script>
-<script src="notice.js"></script>
-<script src="garde.js"></script>
-<script src="worker-ai.js"></script>
-<script src="client-net.js"></script>
-<script src="tournament-client.js"></script>
-<script src="push-client.js"></script>
-<script src="polish-extras.js"></script>
-<script src="copy-extras.js"></script>
-<script src="pwa.js"></script>
-<script src="perf-detect.js"></script>
-</body>
+</div><div class="toast" id="toast" hidden></div><script src="engine.js"></script><script src="openings-extra.js"></script><script src="game.js"></script><script src="analysis.js"></script><script src="analysis-export.js"></script><script src="extras.js"></script><script src="ui-extras.js"></script><script src="puzzles.js"></script><script src="puzzles-v2.js"></script><script src="hotseat.js"></script><script src="lite-mode.js"></script><script src="notice.js"></script><script src="garde.js"></script><script src="worker-ai.js"></script><script src="client-net.js"></script><script src="client-server-ai.js"></script><script src="tournament-client.js"></script><script src="push-client.js"></script><script src="polish-extras.js"></script><script src="copy-extras.js"></script><script src="pwa.js"></script><script src="perf-detect.js"></script></body>
 </html>
